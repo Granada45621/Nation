@@ -40,6 +40,38 @@ scene.fog = new THREE.Fog(fogColor, 30, 150);
 camera.position.set( 0, 80, 0 );
 controls.update();
 
+// Mouse Event
+var raycaster = new THREE.Raycaster();
+var mouse = new THREE.Vector2();
+
+window.addEventListener( 'mousedown', onMouseDown, false );
+
+function onMouseDown( event ) {
+	if(event.button == 2){
+		mouse.x = ( event.clientX / window.innerWidth ) * 2 - 1;
+		mouse.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
+
+
+		// Mouse Move Raycaster
+		raycaster.setFromCamera( mouse, camera );
+
+		var intersects = raycaster.intersectObjects( ground_group.children );
+
+		if(intersects.length > 0){
+			var camera_heightx = intersects[0].object.position.x;
+			var camera_heighty = intersects[0].object.position.y;
+			var camera_heightz = intersects[0].object.position.z;
+			camera.userData.target = new THREE.Vector3(0, camera_heighty, 0);
+
+			ground_group.userData.target = new THREE.Vector3();
+			ground_group.userData.target.x = camera_heightx;
+			ground_group.userData.target.x *= -1;
+			ground_group.userData.target.z = camera_heightz;
+			ground_group.userData.target.z *= -1;
+		}
+	}
+}
+
 // Map
 var map = [];
 var waters = [];
@@ -104,6 +136,8 @@ for (var z = 0; z < map_size; z++) {
 
 		if (data.type == 'ground') {
 			value += 0.7;
+		} else if (data.type == 'water') {
+			value = -1;
 		}
 
 		if (value >= 0) {
@@ -156,81 +190,130 @@ reed_material.opacity = 0.5;
 tree_material.transparent = true;
 tree_material.opacity = 0.5;
 
+var ground_group = new THREE.Group();
+var terrain_group = new THREE.Group();
+
 for (var z = 0; z < map_size; z++) {
 	for (var x = 0; x < map_size; x++) {
 		var here = map[z][x];
 
-		// Three Js 3D
+		// Add Type Object
+		var type_cube;
+
 		if (here.type == 'water') {
-			var cube = new THREE.Mesh( geometry, water_material );
+			type_cube = new THREE.Mesh( geometry, water_material );
 
-			cube.position.x = x - map_size/2;
-			cube.position.y = - 0.5;
-			cube.position.z = z - map_size/2;
+			type_cube.position.x = x - map_size/2;
+			type_cube.position.y = - 0.5;
+			type_cube.position.z = z - map_size/2;
 
-			cube.position.y += Math.random()/2;
-			scene.add( cube );
+			type_cube.position.y += Math.random()/2;
 
-			waters.push( { obj : cube, going : 'up' } );
+			waters.push( { obj : type_cube, going : 'up' } );
 		} else if (here.type == 'ground') {
-			var cube = new THREE.Mesh( geometry, ground_material );
+			type_cube = new THREE.Mesh( geometry, ground_material );
 
-			cube.position.x = x - map_size/2;
-			cube.position.y = here.height;
-			cube.position.z = z - map_size/2;
-
-			scene.add( cube );
+			type_cube.position.x = x - map_size/2;
+			type_cube.position.y = here.height;
+			type_cube.position.z = z - map_size/2;
 		} else if (here.type == 'swamp') {
-			var cube = new THREE.Mesh( geometry, swamp_material );
+			type_cube = new THREE.Mesh( geometry, swamp_material );
 
-			cube.position.x = x - map_size/2;
-			cube.position.y = here.height;
-			cube.position.z = z - map_size/2;
-
-			scene.add( cube );
+			type_cube.position.x = x - map_size/2;
+			type_cube.position.y = here.height;
+			type_cube.position.z = z - map_size/2;
 		}
+		ground_group.add(type_cube);
+
+		// Add Terrain Object
+		var terrain_cube;
 
 		if (here.terrain.name == 'reed') {
-			var cube = new THREE.Mesh( geometry, reed_material );
+			terrain_cube = new THREE.Mesh( geometry, reed_material );
 
-			var density = 0.2+here.terrain.density*2;
-			cube.scale.set(density, density, density);
+			var density = 0.2+here.terrain.density/1.5;
+			terrain_cube.scale.set(density, 1+density, density);
 
-			var height = cube.geometry.parameters.height * density;
+			var height = terrain_cube.geometry.parameters.height * density;
 
-			cube.position.x = x - map_size/2;
-			cube.position.y = here.height + 0.5 + height / 2;
-			cube.position.z = z - map_size/2;
+			terrain_cube.position.x = x - map_size/2;
+			terrain_cube.position.y = here.height + 0.3 + height / 2;
+			terrain_cube.position.z = z - map_size/2;
 
-			scene.add( cube );
+			terrain_group.add(terrain_cube);
 		} else if (here.terrain.name == 'tree') {
-			var cube = new THREE.Mesh( tree_geometry, tree_b_material );
+			// Tree
+			terrain_cube = new THREE.Mesh( tree_geometry, tree_b_material );
 
 			var density = 0.2+here.terrain.density*2;
-			cube.scale.set(density, 1, density);
+			terrain_cube.scale.set(density, 1, density);
 
-			cube.position.x = x - map_size/2;
-			cube.position.y = here.height + 0.75;
-			cube.position.z = z - map_size/2;
+			terrain_cube.position.x = x - map_size/2;
+			terrain_cube.position.y = here.height + 0.75;
+			terrain_cube.position.z = z - map_size/2;
 
-			scene.add( cube );
+			terrain_group.add(terrain_cube);
 
-			var cube = new THREE.Mesh( geometry, tree_material );
+			// Tree Leaf
+			terrain_cube = new THREE.Mesh( geometry, tree_material );
 
 			var density = 0.5+here.terrain.density*1.5;
-			cube.scale.set(density, density, density);
+			terrain_cube.scale.set(density, density, density);
 
-			cube.position.x = x - map_size/2;
-			cube.position.y = here.height + 1;
-			cube.position.z = z - map_size/2;
+			terrain_cube.position.x = x - map_size/2;
+			terrain_cube.position.y = here.height + 1;
+			terrain_cube.position.z = z - map_size/2;
 
-			scene.add( cube );
+			terrain_group.add(terrain_cube);
 		}
 	}
 }
+scene.add( ground_group );
+scene.add( terrain_group );
 
 var animate = function () {
 	requestAnimationFrame( animate );
+
+	// Ground View Change Camera Smooth Move
+	if(ground_group.userData.target) {
+		var target = ground_group.userData.target;
+		var ground = ground_group.position;
+
+		if(target.x > ground.x) {
+			ground.x += 0.5;
+		}
+		if (target.x < ground.x) {
+			ground.x -= 0.5;
+		}
+
+		if(target.z > ground.z) {
+			ground.z += 0.5;
+		}
+		if (target.z < ground.z) {
+			ground.z -= 0.5;
+		}
+
+		if(ground.x == target.x && ground.z == target.z) {
+			ground_group.userData.target = false;
+		}
+
+		terrain_group.position.set(ground.x, ground.y, ground.z);
+	}
+
+	if(camera.userData.target) {
+		var target = camera.userData.target;
+
+		if(controls.target.y < target.y) {
+			controls.target.set(0, controls.target.y+0.1, 0);
+		}
+		if(controls.target.y > target.y) {
+			controls.target.set(0, controls.target.y-0.1, 0);
+		}
+
+		if(controls.target.y == target.y) {
+			camera.userData.target = false;
+		}
+	}
 
 	// Water Wave
 	for (var w = 0, len = waters.length; w < len; w++) {
@@ -251,8 +334,6 @@ var animate = function () {
 	}
 
 	//cube.rotation.z += 0.05;
-	var camera_height = map[map_size/2][map_size/2].height;
-	controls.target.set(0, camera_height, 0);
 	controls.update();
 
 	renderer.render(scene, camera);
