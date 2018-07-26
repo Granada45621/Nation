@@ -1,18 +1,18 @@
 // Scene And Camera
 var scene = new THREE.Scene();
-var camera = new THREE.PerspectiveCamera( 45, window.innerWidth/window.innerHeight, 1, 10000 );
+var camera = new THREE.PerspectiveCamera( 45, window.innerWidth/window.innerHeight, 1, 200 );
 var controls = new THREE.OrbitControls( camera );
 
 // Orbit Control Setting
 controls.enableDamping = true; // an animation loop is required when either damping or auto-rotation are enabled
 controls.dampingFactor = 0.8;
 controls.panningMode = THREE.HorizontalPanning; // default is THREE.ScreenSpacePanning
-controls.minDistance = 1;
-controls.maxDistance = 400
-//controls.maxPolarAngle = Math.PI / 2 + 0.3;
+controls.minDistance = 10;
+controls.maxDistance = 100
+controls.maxPolarAngle = Math.PI / 2 - 0.5;
 
 // Renderer
-var renderer = new THREE.WebGLRenderer({ antialias: false });
+var renderer = new THREE.WebGLRenderer({ antialias: true });
 
 renderer.setPixelRatio( window.devicePixelRatio );
 renderer.setSize( window.innerWidth, window.innerHeight );
@@ -22,7 +22,7 @@ renderer.gammaOutput = true;*/
 
 document.body.appendChild( renderer.domElement );
 
-//Create a DirectionalLight and turn on shadows for the light
+// AmbientLight
 var light = new THREE.AmbientLight( 0xffffff, 0.5, 100 );
 //light.position.set( 10, 10, 10 );
 scene.add( light );
@@ -31,10 +31,10 @@ var hlight = new THREE.HemisphereLight( 0xffffbb, 0x080820, 1 );
 scene.add( hlight );
 
 // Fog
-/*var fogColor = new THREE.Color('skyblue');
+var fogColor = new THREE.Color('skyblue');
 
 scene.background = fogColor;
-scene.fog = new THREE.Fog(fogColor, 30, 120);*/
+scene.fog = new THREE.Fog(fogColor, 30, 150);
 
 // Camera Position
 camera.position.set( 0, 80, 0 );
@@ -42,35 +42,36 @@ controls.update();
 
 // Map
 var map = [];
-var cloud_map = [];
 var waters = [];
 var map_size = 80;
 var seeds = {
 	elevation : Math.random(),
 	swamp : Math.random(),
 	reed : Math.random(),
-	cloud : Math.random(),
+	tree : Math.random(),
 }
 
 // Map Setting
 for (var z = 0; z < map_size; z++) {
 	map.push( [] );
-	cloud_map.push( [] );
 	for (var x = 0; x < map_size; x++) {
 		var data = {
 			height : 0,
 			density : 0,
 			cube : false,
 			type : '',
-			terrain : '',
+			terrain : {
+				name : '',
+				density : 0,
+			},
 		};
 
 		// Ground Elevation
 		noise.seed(seeds.elevation);
-		var value = noise.perlin2(x / 120, z / 120) + 0.25;
+		var value = noise.perlin2(x / 140, z / 140) + 0.25;
 		value += noise.perlin2(x / 100, z / 100) / 2;
-		value += noise.perlin2(x / 50, z / 50) / 3;
-		value += noise.perlin2(x / 10, z / 10) / 4;
+		value += noise.perlin2(x / 50, z / 50) / 4;
+		value += noise.perlin2(x / 10, z / 10) / 6;
 
 		value *= 10;
 
@@ -94,9 +95,27 @@ for (var z = 0; z < map_size; z++) {
 			}
 		}
 
+		// Tree
+		noise.seed(seeds.tree);
+		var value = noise.perlin2(x / 20, z / 20) - 1;
+		value += noise.perlin2(x / 10, z / 10) / 2;
+		value += noise.perlin2(x / 5, z / 5) / 4;
+		value += noise.perlin2(x / 2, z / 2) / 6;
+
+		if (data.type == 'ground') {
+			value += 0.7;
+		}
+
+		if (value >= 0) {
+			data.terrain = {
+				name : 'tree',
+				density : value,
+			};
+		}
+
 		// Reed
 		noise.seed(seeds.reed);
-		var value = noise.perlin2(x / 20, z / 20) - 0.3;
+		var value = noise.perlin2(x / 20, z / 20) - 0.2;
 
 		if (data.type == 'water') {
 			value -= (data.density * -1) / 2;
@@ -107,31 +126,10 @@ for (var z = 0; z < map_size; z++) {
 		}
 
 		if (value >= 0) {
-			data.terrain = 'reed';
-		}
-
-		// Cloud
-		cloud_map[z].push( [] );
-		for(var h = 0; h < data.height+30; h++) {
-			var he = h - data.height;
-			// Cloud
-			noise.seed(seeds.cloud);
-			var value = noise.perlin3(x / 20, z / 20, h / 20) - 1;
-			value += noise.perlin3(x / 10, z / 10, h / 10) / 2;
-			if(value < 0) {
-				value += noise.perlin3(x / 5, z / 5, h / 5) / 4;
-			}
-
-			if(he > 20 && he <= 25) {
-				value += he / 100;
-			}
-
-			if(he > 25) {
-				value += 0.8;
-				value -= he / 20 * 0.2;
-				//console.log(value);
-			}
-			cloud_map[z][x].push(value);
+			data.terrain = {
+				name : 'reed',
+				density : value,
+			};
 		}
 
 		map[z].push(data);
@@ -139,21 +137,24 @@ for (var z = 0; z < map_size; z++) {
 }
 
 // Draw 3D Box
-var geometry = new THREE.BoxGeometry( 0.98, 1, 0.98 );
+var geometry = new THREE.BoxBufferGeometry( 0.98, 1, 0.98 );
+var tree_geometry = new THREE.BoxBufferGeometry( 0.3, 0.5, 0.3 );
+
 var ground_material = new THREE.MeshStandardMaterial( { color: 0x00ff00 } );
+var tree_b_material = new THREE.MeshStandardMaterial( { color: new THREE.Color('brown') } );
 var reed_material = new THREE.MeshStandardMaterial( { color: new THREE.Color('brown') } );
 var water_material = new THREE.MeshStandardMaterial( { color: new THREE.Color('rgb(0,0,255)') } );
 var swamp_material = new THREE.MeshStandardMaterial( { color: new THREE.Color('rgb(0, 128, 59)') } );
-var cloud_material = new THREE.MeshStandardMaterial( { color: new THREE.Color('rgb(255, 255, 255)') } );
+var tree_material = new THREE.MeshStandardMaterial( { color: new THREE.Color('green') } );
 
 water_material.transparent = true;
 water_material.opacity = 0.6;
 
 reed_material.transparent = true;
-reed_material.opacity = 0.3;
+reed_material.opacity = 0.5;
 
-cloud_material.transparent = true;
-cloud_material.opacity = 0.1;
+tree_material.transparent = true;
+tree_material.opacity = 0.5;
 
 for (var z = 0; z < map_size; z++) {
 	for (var x = 0; x < map_size; x++) {
@@ -170,7 +171,6 @@ for (var z = 0; z < map_size; z++) {
 			cube.position.y += Math.random()/2;
 			scene.add( cube );
 
-			data.cube = cube;
 			waters.push( { obj : cube, going : 'up' } );
 		} else if (here.type == 'ground') {
 			var cube = new THREE.Mesh( geometry, ground_material );
@@ -180,8 +180,6 @@ for (var z = 0; z < map_size; z++) {
 			cube.position.z = z - map_size/2;
 
 			scene.add( cube );
-
-			data.cube = cube;
 		} else if (here.type == 'swamp') {
 			var cube = new THREE.Mesh( geometry, swamp_material );
 
@@ -190,35 +188,43 @@ for (var z = 0; z < map_size; z++) {
 			cube.position.z = z - map_size/2;
 
 			scene.add( cube );
-
-			data.cube = cube;
 		}
 
-		// Cloud
-		for(var h = 0; h < here.height+30; h++) {
-			var cell = cloud_map[z][x][h];
-
-			if(cell > 0) {
-				var cube = new THREE.Mesh( geometry, cloud_material );
-
-				cube.position.x = x - map_size/2;
-				cube.position.y = h;
-				cube.position.z = z - map_size/2;
-
-				scene.add( cube );
-			}
-		}
-
-		if (here.terrain == 'reed') {
+		if (here.terrain.name == 'reed') {
 			var cube = new THREE.Mesh( geometry, reed_material );
+
+			var density = 0.2+here.terrain.density*2;
+			cube.scale.set(density, density, density);
+
+			var height = cube.geometry.parameters.height * density;
+
+			cube.position.x = x - map_size/2;
+			cube.position.y = here.height + 0.5 + height / 2;
+			cube.position.z = z - map_size/2;
+
+			scene.add( cube );
+		} else if (here.terrain.name == 'tree') {
+			var cube = new THREE.Mesh( tree_geometry, tree_b_material );
+
+			var density = 0.2+here.terrain.density*2;
+			cube.scale.set(density, 1, density);
+
+			cube.position.x = x - map_size/2;
+			cube.position.y = here.height + 0.75;
+			cube.position.z = z - map_size/2;
+
+			scene.add( cube );
+
+			var cube = new THREE.Mesh( geometry, tree_material );
+
+			var density = 0.5+here.terrain.density*1.5;
+			cube.scale.set(density, density, density);
 
 			cube.position.x = x - map_size/2;
 			cube.position.y = here.height + 1;
 			cube.position.z = z - map_size/2;
 
 			scene.add( cube );
-
-			data.terrain = cube;
 		}
 	}
 }
@@ -245,6 +251,8 @@ var animate = function () {
 	}
 
 	//cube.rotation.z += 0.05;
+	var camera_height = map[map_size/2][map_size/2].height;
+	controls.target.set(0, camera_height, 0);
 	controls.update();
 
 	renderer.render(scene, camera);
