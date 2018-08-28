@@ -66,6 +66,7 @@ controls.update();
 // Mouse Event
 var raycaster = new THREE.Raycaster();
 var mouse = new THREE.Vector2();
+var map_offset = new THREE.Vector2();
 
 window.addEventListener( 'mousedown', onMouseDown, false );
 
@@ -80,19 +81,14 @@ function onMouseDown( event ) {
 		var intersects = raycaster.intersectObjects( ground_group.children );
 
 		if (intersects.length > 0) {
-			camera.userData.target = new THREE.Vector3();
+			var offset_posx = intersects[0].object.position.x;
+			var offset_posy = intersects[0].object.position.y;
+			var offset_posz = intersects[0].object.position.z;
 
-			var camera_heightx = intersects[0].object.position.x;
-			var camera_heighty = intersects[0].object.position.y;
-			var camera_heightz = intersects[0].object.position.z;
+			map_offset.x += (offset_posx + map_offset.x) * -1;
+			map_offset.y += (offset_posz + map_offset.y) * -1;
 
-			var xgap = camera.position.x - controls.target.x;
-			var zgap = camera.position.z - controls.target.z;
-
-			camera.userData.target.x = camera_heightx;
-			camera.userData.target.z = camera_heightz;
-
-			//controls.target = new THREE.Vector3(camera_heightx, camera_heighty, camera_heightz);
+			controls.target = new THREE.Vector3(0, offset_posy, 0);
 		}
 	}
 }
@@ -454,29 +450,19 @@ scene.add( terrain_group );
 var animate = function () {
 	requestAnimationFrame( animate );
 
-	// Ground View Change Camera Smooth Move
-	if (camera.userData.target) {
-		var target = camera.userData.target;
-		var pos = controls.target;
-
-		if (target.x > pos.x) {
-			controls.target.x += 1;
-		}
-		if (target.x < pos.x) {
-			controls.target.x -= 1;
-		}
-
-		if (target.z > pos.z) {
-			controls.target.z += 1;
-		}
-		if (target.z < pos.z) {
-			controls.target.z -= 1;
-		}
-
-		if (controls.target.x == target.x && controls.target.z == target.z) {
-			camera.userData.target = false;
-		}
+	var pos = ground_group.position;
+	if (pos.x > map_offset.x) {
+		pos.x -= 1;
+	} else if (pos.x < map_offset.x) {
+		pos.x += 1;
 	}
+
+	if (pos.z > map_offset.y) {
+		pos.z -= 1;
+	} else if (pos.z < map_offset.y) {
+		pos.z += 1;
+	}
+	terrain_group.position.set(pos.x, pos.y, pos.z);
 
 	controls.update();
 
