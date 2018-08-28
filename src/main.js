@@ -1,6 +1,6 @@
 // Scene And Camera
 var scene = new THREE.Scene();
-var camera = new THREE.PerspectiveCamera( 45, window.innerWidth/window.innerHeight, 1, 200 );
+var camera = new THREE.PerspectiveCamera( 45, window.innerWidth/window.innerHeight, 1, 1000 );
 var controls = new THREE.OrbitControls( camera );
 
 // Orbit Control Setting
@@ -8,8 +8,12 @@ controls.enableDamping = true; // an animation loop is required when either damp
 controls.dampingFactor = 0.8;
 controls.panningMode = THREE.HorizontalPanning; // default is THREE.ScreenSpacePanning
 controls.minDistance = 10;
-controls.maxDistance = 100
-controls.maxPolarAngle = Math.PI / 2 - 0.5;
+controls.maxDistance = 400
+controls.maxPolarAngle = Math.PI / 2;
+
+camera.userData = {
+	target : false,
+};
 
 // Renderer
 var renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -31,10 +35,10 @@ var hlight = new THREE.HemisphereLight( 0xffffff, 0x000000, 1 );
 scene.add( hlight );
 
 // Fog
-var fogColor = new THREE.Color('skyblue');
+/*var fogColor = new THREE.Color('skyblue');
 
 scene.background = fogColor;
-scene.fog = new THREE.Fog(fogColor, 20, 80);
+scene.fog = new THREE.Fog(fogColor, 40, 120);*/
 
 
 
@@ -51,7 +55,7 @@ scene.add( hlight );
 var fogColor = new THREE.Color('rgb(30, 30, 30)');
 
 scene.background = fogColor;
-scene.fog = new THREE.Fog(fogColor, 30, 60);*/
+scene.fog = new THREE.Fog(fogColor, 20, 60);*/
 
 
 
@@ -66,41 +70,44 @@ var mouse = new THREE.Vector2();
 window.addEventListener( 'mousedown', onMouseDown, false );
 
 function onMouseDown( event ) {
-	if (event.button == 2){
+	if (event.button == 2) {
 		mouse.x = ( event.clientX / window.innerWidth ) * 2 - 1;
 		mouse.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
-
 
 		// Mouse Move Raycaster
 		raycaster.setFromCamera( mouse, camera );
 
 		var intersects = raycaster.intersectObjects( ground_group.children );
 
-		if (intersects.length > 0){
+		if (intersects.length > 0) {
+			camera.userData.target = new THREE.Vector3();
+
 			var camera_heightx = intersects[0].object.position.x;
 			var camera_heighty = intersects[0].object.position.y;
 			var camera_heightz = intersects[0].object.position.z;
-			camera.userData.target = new THREE.Vector3(0, camera_heighty, 0);
 
-			ground_group.userData.target = new THREE.Vector3();
-			ground_group.userData.target.x = camera_heightx;
-			ground_group.userData.target.x *= -1;
-			ground_group.userData.target.z = camera_heightz;
-			ground_group.userData.target.z *= -1;
+			var xgap = camera.position.x - controls.target.x;
+			var zgap = camera.position.z - controls.target.z;
+
+			camera.userData.target.x = camera_heightx;
+			camera.userData.target.z = camera_heightz;
+
+			//controls.target = new THREE.Vector3(camera_heightx, camera_heighty, camera_heightz);
 		}
 	}
 }
 
 // Map
 var map = [];
-var waters = [];
-var map_size = 60;
+var map_size = 50;
 var seeds = {
 	elevation : Math.random(),
-	swamp : Math.random(),
 	reed : Math.random(),
 	tree : Math.random(),
 	rock : Math.random(),
+	swamp : Math.random(),
+	plain : Math.random(),
+	desert : Math.random(),
 }
 
 // Map Setting
@@ -112,96 +119,101 @@ for (var z = 0; z < map_size; z++) {
 			density : 0,
 			cube : false,
 			type : '',
-			terrain : false,
+			terrain : [],
 			/*
 
-			terrain : {
+			terrain : [{
 				name : false,
 				density : false,
-			}
+			}]
 
 			*/
 		};
 
 		// Ground Elevation
 		noise.seed(seeds.elevation);
-		var value = noise.perlin2(x / 140, z / 140) + 0.25;
+		var value = noise.perlin2(x / 1000, z / 1000)*2;
 		value += noise.perlin2(x / 100, z / 100) / 2;
-		value += noise.perlin2(x / 50, z / 50) / 4;
+		value += noise.perlin2(x / 60, z / 60) / 3;
+		value += noise.perlin2(x / 40, z / 40) / 4;
+		value += noise.perlin2(x / 20, z / 20) / 5;
 		value += noise.perlin2(x / 10, z / 10) / 6;
 
 		value *= 10;
 
 		data.density = value;
-		if (value >= 0) {
+		if (value > 0) {
 			data.height = parseInt(value);
 			data.type = 'ground';
+		} else if (value >= -1) {
+			data.type = 'coast';
 		} else {
-			data.type = 'water';
+			data.type = 'ocean';
 		}
 
 		// Swamp
 		noise.seed(seeds.swamp);
-		var value = noise.perlin2(x / 30, z / 30);
+		var value = noise.perlin2(x / 10, z / 10) - 0.3;
 
 		if (data.type == 'ground') {
-			value -= data.height / 3;
+			value -= data.height / 2;
 
-			if (value >= 0) {
+			if (value > 0) {
 				data.type = 'swamp';
+			}
+		}
+
+		// Plain
+		noise.seed(seeds.plain);
+		var value = noise.perlin2(x / 20, z / 20) - 0.1;
+		value += noise.perlin2(x / 10, z / 10) / 2;
+		value += noise.perlin2(x / 5, z / 5) / 3;
+
+		if (data.type == 'ground') {
+			if (value > 0) {
+				data.type = 'plain';
+			}
+		}
+
+		// Desert
+		noise.seed(seeds.desert);
+		var value = noise.perlin2(x / 50, z / 50)-0.7;
+		value += noise.perlin2(x / 20, z / 20) / 2;
+		value += noise.perlin2(x / 10, z / 10) / 3;
+		value += noise.perlin2(x / 5, z / 5) / 4;
+
+		if (data.type == 'ground') {
+			if (value > 0) {
+				data.type = 'desert';
 			}
 		}
 
 		// Rock
 		noise.seed(seeds.rock);
-		var value = noise.perlin2(x / 20, z / 20) - 0.5;
-		value += noise.perlin2(x / 10, z / 10) / 2;
-		value += noise.perlin2(x / 5, z / 5) / 4;
+		var value = noise.perlin2(x / 3, z / 3) - 0.3;
 
-		if (value > 0 && data.type != 'water'){
-			data.terrain = {
+		if (value > 0 && data.height > 0) {
+			data.terrain.push({
 				name : 'rock',
 				density : value,
-			};
+			});
 		}
 
 		// Tree
 		noise.seed(seeds.tree);
-		var value = noise.perlin2(x / 20, z / 20) - 1;
-		value += noise.perlin2(x / 10, z / 10) / 2;
-		value += noise.perlin2(x / 5, z / 5) / 4;
-		value += noise.perlin2(x / 2, z / 2) / 6;
+		var value = noise.perlin2(x / 10, z / 10) - 0.9;
 
-		if (data.type == 'ground') {
+		if (data.type == 'ground' || data.type == 'plain') {
 			value += 0.7;
-		} else if (data.type == 'water') {
+		} else if (data.height > 0) {
 			value = -1;
 		}
 
 		if (value >= 0) {
-			data.terrain = {
+			data.terrain.push({
 				name : 'tree',
 				density : value,
-			};
-		}
-
-		// Reed
-		noise.seed(seeds.reed);
-		var value = noise.perlin2(x / 20, z / 20) - 0.2;
-
-		if (data.type == 'water') {
-			value -= (data.density * -1) / 2;
-		} else if (data.type == 'ground') {
-			value -= data.height / 2;
-		} else if (data.type == 'swamp') {
-			value -= data.height / 6;
-		}
-
-		if (value >= 0) {
-			data.terrain = {
-				name : 'reed',
-				density : value,
-			};
+			});
 		}
 
 		map[z].push(data);
@@ -211,25 +223,27 @@ for (var z = 0; z < map_size; z++) {
 // Draw 3D Box
 
 // Geometry Setting
-var geometry = new THREE.BoxBufferGeometry( 0.98, 1, 0.98 );
-var wood_geometry = new THREE.BoxBufferGeometry( 0.3, 0.5, 0.3 );
+var geometry = new THREE.BoxBufferGeometry( 1.98, 0.5, 1.98 );
+var box_geometry = new THREE.BoxBufferGeometry( 1, 1, 1 );
 
 // Material Setting
-var ground_material = new THREE.MeshStandardMaterial( { color: 0x00ff00 } );
+var ground_material = new THREE.MeshStandardMaterial( { color: new THREE.Color('rgb(0,220,0)') } );
 var tree_wood_material = new THREE.MeshStandardMaterial( { color: new THREE.Color('brown') } );
-var reed_material = new THREE.MeshStandardMaterial( { color: new THREE.Color('brown') } );
-var water_material = new THREE.MeshStandardMaterial( { color: new THREE.Color('rgb(0,0,255)') } );
-var swamp_material = new THREE.MeshStandardMaterial( { color: new THREE.Color('rgb(0, 128, 59)') } );
+var coast_material = new THREE.MeshStandardMaterial( { color: new THREE.Color('rgb(0,0,200)') } );
+var ocean_material = new THREE.MeshStandardMaterial( { color: new THREE.Color('rgb(0,0,120)') } );
+var swamp_material = new THREE.MeshStandardMaterial( { color: new THREE.Color('rgb(0,140,70)') } );
 var tree_leaf_material = new THREE.MeshStandardMaterial( { color: new THREE.Color('green') } );
 var rock_material = new THREE.MeshStandardMaterial( { color: new THREE.Color('rgb(100,100,100)') } );
+var desert_material = new THREE.MeshStandardMaterial( { color: new THREE.Color('rgb(220,186,141)') } );
+var plain_material = new THREE.MeshStandardMaterial( { color: new THREE.Color('rgb(140,230,0)') } );
 var empty_material = new THREE.MeshStandardMaterial( { color: new THREE.Color('rgb(0,0,0)') } );
 
 // Material Opacity
-water_material.transparent = true;
-water_material.opacity = 0.5;
+coast_material.transparent = true;
+coast_material.opacity = 0.8;
 
-reed_material.transparent = true;
-reed_material.opacity = 0.5;
+ocean_material.transparent = true;
+ocean_material.opacity = 0.8;
 
 tree_leaf_material.transparent = true;
 tree_leaf_material.opacity = 0.5;
@@ -250,79 +264,182 @@ for (var z = 0; z < map_size; z++) {
 		// Add Type Object
 		var type_cube = false;
 		var position = new THREE.Vector3();
+		var material = false;
 
-		position.x = x - map_size/2;
-		position.y = here.height;
-		position.z = z - map_size/2;
+		position.x = x*2 - map_size*2/2;
+		position.y = here.height*0.5;
+		position.z = z*2 - map_size*2/2;
 
-		if (here.type == 'water') {
-			type_cube = new THREE.Mesh( geometry, water_material );
+		if (here.type == 'ocean') {
+			material = ocean_material;
 
-			position.y = - 0.5;
-			position.y += Math.random()/2;
+			position.y = - 0.2;
+			/*position.y += Math.random()/2;*/
+		} else if (here.type == 'coast') {
+			material = coast_material;
 
-			waters.push( { obj : type_cube, going : 'up' } );
+			position.y = - 0.2;
 		} else if (here.type == 'ground') {
-			type_cube = new THREE.Mesh( geometry, ground_material );
+			material = ground_material;
 		} else if (here.type == 'swamp') {
-			type_cube = new THREE.Mesh( geometry, swamp_material );
+			material = swamp_material;
+		} else if (here.type == 'desert') {
+			material = desert_material;
+		} else if (here.type == 'plain') {
+			material = plain_material;
 		}
+
+		// Add Cube
+		type_cube = new THREE.Mesh( geometry, empty_material );
+		var cube = new THREE.Mesh( geometry, material );
+
+		var near = [
+			[z,x+1],
+			[z+1,x],
+			[z,x-1],
+			[z-1,x],
+		];
+
+		var cliffgap = 0;
+		for (var n = 0; n < near.length; n++) {
+			var ne = near[n];
+
+			if (ne[0] < map_size && ne[1] < map_size && ne[0] >= 0 && ne[1] >= 0) {
+				var tile = map[ne[0]][ne[1]];
+				/*if (tile.height == here.height - 1) {
+					var stair = new THREE.Mesh( geometry, material );
+					var ran = Math.random()/10;
+					stair.scale.set(1.1+ran, 0.8+ran, 1.1+ran);
+
+					stair.position.y = -0.5;
+
+					type_cube.add(stair);
+
+
+					var stair = new THREE.Mesh( geometry, material );
+					stair.scale.set(1.2+ran, 0.7+ran, 1.2+ran);
+
+					stair.position.y = -1;
+
+					type_cube.add(stair);
+				}*/
+				if (tile.height <= (here.height - 2)) {
+					var gap = here.height - (tile.height);
+					if (gap >= cliffgap) {
+						cliffgap = gap;
+					}
+				}
+			}
+		}
+
+		for (var g = 0; g < cliffgap; g++) {
+			var cliff = new THREE.Mesh( geometry, material );
+
+			cliff.position.y = -0.5*(g+1);
+
+			type_cube.add(cliff);
+		}
+
+		type_cube.add(cube);
+
 		type_cube.position.add(position);
 		ground_group.add( type_cube );
 
 		// Add Terrain Object
-		var terrain_cube = false;
+		var terrain_cube = new THREE.Group();
 		var position = new THREE.Vector3();
 
-		position.x = x - map_size/2;
-		position.y = here.height;
-		position.z = z - map_size/2;
+		position.x = x*2 - map_size*2/2;
+		position.y = here.height*0.5;
+		position.z = z*2 - map_size*2/2;
 
-		if (here.terrain.name == 'reed') {
-			terrain_cube = new THREE.Mesh( geometry, reed_material );
+		for (var t = 0; t < here.terrain.length; t++) {
+			var ter = here.terrain[t];
 
-			var density = here.terrain.density;
+			if (ter.name == 'tree') {
+				var poslist = [];	// Tree Position, new THREE.Vector3()
+				for (var w = 0; w < ter.density*4; w++){
+					wood_group = new THREE.Group();
 
-			var height = 0.2 + Math.random()/2 + density/4;
+					wood_group.rotation.y = Math.random();
 
-			terrain_cube.scale.set( 0.2+density, height, 0.2+density );
+					// Tree TooClose
+					var loopcount = 0;
+					var tooclose = false;
+					do {
+						tooclose = false;
+						var newpos = new THREE.Vector3();
 
-			position.y += 0.5+height/2;
-		} else if (here.terrain.name == 'tree') {
-			// Tree
-			terrain_cube = new THREE.Group();
+						newpos.x = (Math.random()-0.5)*1.5;
+						newpos.z = (Math.random()-0.5)*1.5;
 
-			// Wood
-			var wood_mesh = new THREE.Mesh( wood_geometry, tree_wood_material );
+						for(var p = 0; p < poslist.length; p++) {
+							var po = poslist[p];
 
-			var density = 0.2+here.terrain.density*2;
-			wood_mesh.scale.set(density, 1, density);
+							if(newpos.distanceTo(po) <= 1) {
+								tooclose = true;
+								break;
+							}
+						}
 
-			wood_mesh.position.y = 0.75;
+						wood_group.position.x = newpos.x;
+						wood_group.position.z = newpos.z;
 
-			terrain_cube.add(wood_mesh);
+						loopcount += 1;
+						if(loopcount >= 10)
+							break;
+					} while (tooclose);
 
-			// Leaf
-			var leaf_mesh = new THREE.Mesh( geometry, tree_leaf_material );
+					poslist.push(new THREE.Vector3().copy(wood_group.position));
 
-			var density = 0.5+here.terrain.density*1.5;
-			leaf_mesh.scale.set(density, density, density);
+					// Wood
+					var rand = Math.random();
 
-			leaf_mesh.position.y = 1;
+					var wood_mesh = new THREE.Mesh( box_geometry, tree_wood_material );
 
-			terrain_cube.add(leaf_mesh);
-		} else if (here.terrain.name == 'rock') {
-			var density = 0.2+here.terrain.density*2.5;
+					var density = 0.05;	//+ter.density/2
+					var height = 0.5;	//+ter.density/2
 
-			terrain_cube = new THREE.Mesh( geometry, rock_material );
+					if (rand >= 0.8) {
+						height += ter.density/4;
+						density += ter.density/6;
+					}
 
-			terrain_cube.scale.set( density, density, density );
+					wood_mesh.scale.set(density, height, density);
 
-			position.y += 0.5;
+					wood_mesh.position.y = 0.25+height/2;;
 
-			terrain_cube.rotation.x += 5 * Math.random();
-			terrain_cube.rotation.y += 5 * Math.random();
-			terrain_cube.rotation.z += 5 * Math.random();
+					wood_group.add(wood_mesh);
+
+					// Leaf
+					var leaf_mesh = new THREE.Mesh( box_geometry, tree_leaf_material );
+
+					var density = 0.5;	//+ter.density*1.3
+
+					if (rand >= 0.8) {
+						density += ter.density/2;
+					}
+
+					leaf_mesh.scale.set(density, density, density);
+
+					leaf_mesh.position.y = 0.25+height;
+
+					wood_group.add(leaf_mesh);
+
+					terrain_cube.add(wood_group);
+				}
+			}
+			if (ter.name == 'rock') {
+				var density = 0.2+ter.density*2.5;
+
+				var terrain = new THREE.Mesh( box_geometry, rock_material );
+
+				terrain.scale.set( density, density/4, density );
+
+				terrain.position.y = 0.25;
+
+				terrain_cube.add(terrain);
+			}
 		}
 
 		if (terrain_cube) {
@@ -338,66 +455,27 @@ var animate = function () {
 	requestAnimationFrame( animate );
 
 	// Ground View Change Camera Smooth Move
-	if (ground_group.userData.target) {
-		var target = ground_group.userData.target;
-		var ground = ground_group.position;
-
-		if (target.x > ground.x) {
-			ground.x += 0.5;
-		}
-		if (target.x < ground.x) {
-			ground.x -= 0.5;
-		}
-
-		if (target.z > ground.z) {
-			ground.z += 0.5;
-		}
-		if (target.z < ground.z) {
-			ground.z -= 0.5;
-		}
-
-		if (ground.x == target.x && ground.z == target.z) {
-			ground_group.userData.target = false;
-		}
-
-		terrain_group.position.set(ground.x, ground.y, ground.z);
-	}
-
 	if (camera.userData.target) {
 		var target = camera.userData.target;
+		var pos = controls.target;
 
-		if (controls.target.y < target.y) {
-			controls.target.set(0, controls.target.y+0.1, 0);
+		if (target.x > pos.x) {
+			controls.target.x += 1;
 		}
-		if (controls.target.y > target.y) {
-			controls.target.set(0, controls.target.y-0.1, 0);
+		if (target.x < pos.x) {
+			controls.target.x -= 1;
 		}
 
-		if (controls.target.y == target.y) {
+		if (target.z > pos.z) {
+			controls.target.z += 1;
+		}
+		if (target.z < pos.z) {
+			controls.target.z -= 1;
+		}
+
+		if (controls.target.x == target.x && controls.target.z == target.z) {
 			camera.userData.target = false;
 		}
-	}
-
-	// Water Wave
-	for (var w = 0, len = waters.length; w < len; w++) {
-		var water = waters[w];
-		var height = water.obj.position.y;
-
-		if (height >= -0) {
-			water.going = 'down';
-		} else if (height <= -0.2) {
-			water.going = 'up';
-		}
-
-		if (water.going == 'down') {
-			water.obj.position.y -= 0.01;
-		} else if (water.going == 'up') {
-			water.obj.position.y += 0.01;
-		}
-
-		water.obj.rotation.x += 0.05 * Math.random();
-		water.obj.rotation.y += 0.05 * Math.random();
-		water.obj.rotation.z += 0.05 * Math.random();
 	}
 
 	controls.update();
