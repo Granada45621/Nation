@@ -1,472 +1,506 @@
-// Scene And Camera
-var scene = new THREE.Scene();
-var camera = new THREE.PerspectiveCamera( 45, window.innerWidth/window.innerHeight, 1, 1000 );
-var controls = new THREE.OrbitControls( camera );
+var scene;
+var camera;
+var orbitControls;
+var renderer;
+var lights;
+var fogs;
 
-// Orbit Control Setting
-controls.enableDamping = true; // an animation loop is required when either damping or auto-rotation are enabled
-controls.dampingFactor = 0.8;
-controls.panningMode = THREE.HorizontalPanning; // default is THREE.ScreenSpacePanning
-controls.minDistance = 10;
-controls.maxDistance = 400
-controls.maxPolarAngle = Math.PI / 2;
+var map;
+var mouse;
+var raycaster;
+var geometry;
+var material;
+var group;
 
-camera.userData = {
-	target : false,
-};
+function Init() {
+	// Scene And Camera
+	scene = new THREE.Scene();
+	camera = new THREE.PerspectiveCamera( 45, window.innerWidth / window.innerHeight, 1, 200 );
+	orbitControls = new THREE.OrbitControls( camera );
 
-// Renderer
-var renderer = new THREE.WebGLRenderer({ antialias: true });
+	// Renderer
+	renderer = new THREE.WebGLRenderer( { antialias: true } );
 
-renderer.setPixelRatio( window.devicePixelRatio );
-renderer.setSize( window.innerWidth, window.innerHeight );
+	// Light
+	lights = {
+		day : {
+			ambientLight : new THREE.AmbientLight( 0xffffff, 0.5, 100 ),
+			hemisphereLight : new THREE.HemisphereLight( 0xffffff, 0x000000, 1 ),
+		},
+		night : {
+			ambientLight : new THREE.AmbientLight( 0xaaaaaa, 0.5, 100 ),
+			hemisphereLight : new THREE.HemisphereLight( 0xaaaaaa, 0x000000, 1 ),
+		},
+	};
 
-/*renderer.gammaInput = true;
-renderer.gammaOutput = true;*/
+	// Fog
+	fogs = {
+		day : {
+			fog : new THREE.Fog( new THREE.Color( 'skyblue' ), 40, 120 ),
+		},
+		night : {
+			fog : new THREE.Fog( new THREE.Color( 'rgb(30, 30, 30)' ), 20, 60 ),
+		},
+	};
 
-document.body.appendChild( renderer.domElement );
+	// Camera Setting
+	camera.position.set( 0, 80, 0 );
+	camera.userData = { target : false };
 
-// AmbientLight
-var light = new THREE.AmbientLight( 0xffffff, 0.5, 100 );
-//light.position.set( 10, 10, 10 );
-scene.add( light );
+	// Orbit Control Setting
+	orbitControls.enableDamping = true;
+	orbitControls.dampingFactor = 0.8;
+	orbitControls.panningMode = THREE.HorizontalPanning;
+	orbitControls.minDistance = 10;
+	orbitControls.maxDistance = 400
+	orbitControls.maxPolarAngle = Math.PI / 2;
+	orbitControls.update();
 
-var hlight = new THREE.HemisphereLight( 0xffffff, 0x000000, 1 );
-scene.add( hlight );
+	// Renderer Setting
+	renderer.setPixelRatio( window.devicePixelRatio );
+	renderer.setSize( window.innerWidth, window.innerHeight );
+	document.body.appendChild( renderer.domElement );
 
-// Fog
-/*var fogColor = new THREE.Color('skyblue');
+	// Add Light to Scene
+	scene.add( lights.day.ambientLight );
+	scene.add( lights.day.hemisphereLight );
 
-scene.background = fogColor;
-scene.fog = new THREE.Fog(fogColor, 40, 120);*/
+	/*scene.add( lights.night.ambientLight );
+	scene.add( lights.night.hemisphereLight );*/
 
+	// Add Fog to Scene
+	/*scene.background = fogs.day.fog.color;
+	scene.fog = fogs.day.fog;
 
+	scene.background = fogs.night.fog.color;
+	scene.fog = fogs.night.fog;*/
 
-// Night Mode
-// AmbientLight
-/*var light = new THREE.AmbientLight( 0xaaaaaa, 0.5, 100 );
-//light.position.set( 10, 10, 10 );
-scene.add( light );
+	// Map
+	map = {
+		map : [],
+		size : 50,
+		offset : new THREE.Vector2(),
+		seeds : {
+			elevation : Math.random(),
+			reed : Math.random(),
+			tree : Math.random(),
+			rock : Math.random(),
+			swamp : Math.random(),
+			plain : Math.random(),
+			desert : Math.random(),
+		},
+	};
 
-var hlight = new THREE.HemisphereLight( 0xaaaaaa, 0x000000, 1 );
-scene.add( hlight );
+	// Mouse
+	mouse = {
+		position : new THREE.Vector2(),
+	};
 
-// Fog
-var fogColor = new THREE.Color('rgb(30, 30, 30)');
+	// Raycaster
+	raycaster = new THREE.Raycaster();
 
-scene.background = fogColor;
-scene.fog = new THREE.Fog(fogColor, 20, 60);*/
+	// Geometry
+	geometry = {
+		ground : new THREE.BoxBufferGeometry( 1.98, 0.5, 1.98 ),
+		box : new THREE.BoxBufferGeometry( 1, 1, 1 ),
+	};
 
+	// Material
+	material = {
+		grass : new THREE.MeshStandardMaterial( { color: new THREE.Color('rgb(0,220,0)') } ),
+		tree_wood : new THREE.MeshStandardMaterial( { color: new THREE.Color('brown') } ),
+		coast : new THREE.MeshStandardMaterial( { color: new THREE.Color('rgb(0,0,200)') } ),
+		ocean : new THREE.MeshStandardMaterial( { color: new THREE.Color('rgb(0,0,120)') } ),
+		swamp : new THREE.MeshStandardMaterial( { color: new THREE.Color('rgb(0,140,70)') } ),
+		tree_leaf : new THREE.MeshStandardMaterial( { color: new THREE.Color('green') } ),
+		rock : new THREE.MeshStandardMaterial( { color: new THREE.Color('rgb(100,100,100)') } ),
+		desert : new THREE.MeshStandardMaterial( { color: new THREE.Color('rgb(220,186,141)') } ),
+		plain : new THREE.MeshStandardMaterial( { color: new THREE.Color('rgb(140,230,0)') } ),
+		empty : new THREE.MeshStandardMaterial( { color: new THREE.Color('rgb(0,0,0)') } ),
+	};
 
+	// Group
+	group = {
+		ground : new THREE.Group(),
+		terrain : new THREE.Group(),
+	};
 
-// Camera Position
-camera.position.set( 0, 80, 0 );
-controls.update();
+	// Material Setting
+	material.coast.transparent = true;
+	material.coast.opacity = 0.8;
+
+	material.ocean.transparent = true;
+	material.ocean.opacity = 0.8;
+
+	material.tree_leaf.transparent = true;
+	material.tree_leaf.opacity = 0.5;
+
+	material.rock.transparent = true;
+	material.rock.opacity = 0.8;
+
+	material.empty.transparent = true;
+	material.empty.opacity = 0;
+
+	// Add Group to Scene
+	scene.add( group.ground );
+	scene.add( group.terrain );
+
+	MapInit();
+}
 
 // Mouse Event
-var raycaster = new THREE.Raycaster();
-var mouse = new THREE.Vector2();
-var map_offset = new THREE.Vector2();
-
-window.addEventListener( 'mousedown', onMouseDown, false );
+window.addEventListener('mousedown', onMouseDown, false);
 
 function onMouseDown( event ) {
 	if (event.button == 2) {
-		mouse.x = ( event.clientX / window.innerWidth ) * 2 - 1;
-		mouse.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
+		mouse.position.x = ( event.clientX / window.innerWidth ) * 2 - 1;
+		mouse.position.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
 
 		// Mouse Move Raycaster
-		raycaster.setFromCamera( mouse, camera );
+		raycaster.setFromCamera( mouse.position, camera );
 
-		var intersects = raycaster.intersectObjects( ground_group.children );
+		var intersects = raycaster.intersectObjects( group.ground.children );
 
 		if (intersects.length > 0) {
 			var offset_posx = intersects[0].object.position.x;
 			var offset_posy = intersects[0].object.position.y;
 			var offset_posz = intersects[0].object.position.z;
 
-			map_offset.x += (offset_posx + map_offset.x) * -1;
-			map_offset.y += (offset_posz + map_offset.y) * -1;
+			map.offset.x += (offset_posx + map.offset.x) * -1;
+			map.offset.y += (offset_posz + map.offset.y) * -1;
 
-			controls.target = new THREE.Vector3(0, offset_posy, 0);
+			orbitControls.target = new THREE.Vector3( 0, offset_posy, 0 );
 		}
 	}
-}
-
-// Map
-var map = [];
-var map_size = 50;
-var seeds = {
-	elevation : Math.random(),
-	reed : Math.random(),
-	tree : Math.random(),
-	rock : Math.random(),
-	swamp : Math.random(),
-	plain : Math.random(),
-	desert : Math.random(),
 }
 
 // Map Setting
-for (var z = 0; z < map_size; z++) {
-	map.push( [] );
-	for (var x = 0; x < map_size; x++) {
-		var data = {
-			height : 0,
-			density : 0,
-			cube : false,
-			type : '',
-			terrain : [],
-			/*
+function MapInit() {
+	// Make Number Map
+	for (var z = 0; z < map.size; z++) {
+		map.map.push( [] );
+		for (var x = 0; x < map.size; x++) {
+			var data = {
+				height : 0,
+				density : 0,
+				cube : false,
+				type : '',
+				terrain : [],
+				/*
 
-			terrain : [{
-				name : false,
-				density : false,
-			}]
+				terrain : [{
+					name : text,
+					density : number,
+				}]
 
-			*/
-		};
+				*/
+			};
 
-		// Ground Elevation
-		noise.seed(seeds.elevation);
-		var value = noise.perlin2(x / 1000, z / 1000)*2;
-		value += noise.perlin2(x / 100, z / 100) / 2;
-		value += noise.perlin2(x / 60, z / 60) / 3;
-		value += noise.perlin2(x / 40, z / 40) / 4;
-		value += noise.perlin2(x / 20, z / 20) / 5;
-		value += noise.perlin2(x / 10, z / 10) / 6;
+			// Ground Elevation
+			noise.seed( map.seeds.elevation );
+			var value = noise.perlin2( x / 1000, z / 1000 ) * 2;
+			value += noise.perlin2( x / 100, z / 100 ) / 2;
+			value += noise.perlin2( x / 60, z / 60 ) / 3;
+			value += noise.perlin2( x / 40, z / 40 ) / 4;
+			value += noise.perlin2( x / 20, z / 20 ) / 5;
+			value += noise.perlin2( x / 10, z / 10 ) / 6;
 
-		value *= 10;
+			value *= 10;
 
-		data.density = value;
-		if (value > 0) {
-			data.height = parseInt(value);
-			data.type = 'ground';
-		} else if (value >= -1) {
-			data.type = 'coast';
-		} else {
-			data.type = 'ocean';
-		}
-
-		// Swamp
-		noise.seed(seeds.swamp);
-		var value = noise.perlin2(x / 10, z / 10) - 0.3;
-
-		if (data.type == 'ground') {
-			value -= data.height / 2;
-
+			data.density = value;
 			if (value > 0) {
-				data.type = 'swamp';
+				data.height = parseInt( value );
+				data.type = 'grass';
+			} else if (value >= -1) {
+				data.type = 'coast';
+			} else {
+				data.type = 'ocean';
 			}
-		}
 
-		// Plain
-		noise.seed(seeds.plain);
-		var value = noise.perlin2(x / 20, z / 20) - 0.1;
-		value += noise.perlin2(x / 10, z / 10) / 2;
-		value += noise.perlin2(x / 5, z / 5) / 3;
+			// Swamp
+			noise.seed( map.seeds.swamp );
+			var value = noise.perlin2( x / 10, z / 10 ) - 0.3;
 
-		if (data.type == 'ground') {
-			if (value > 0) {
-				data.type = 'plain';
+			if (data.type == 'grass' || data.type == 'plain') {
+				value -= data.height / 2;
+
+				if (value > 0) {
+					data.type = 'swamp';
+				}
 			}
-		}
 
-		// Desert
-		noise.seed(seeds.desert);
-		var value = noise.perlin2(x / 50, z / 50)-0.7;
-		value += noise.perlin2(x / 20, z / 20) / 2;
-		value += noise.perlin2(x / 10, z / 10) / 3;
-		value += noise.perlin2(x / 5, z / 5) / 4;
+			// Plain
+			noise.seed( map.seeds.plain );
+			var value = noise.perlin2( x / 20, z / 20 ) - 0.1;
+			value += noise.perlin2( x / 10, z / 10 ) / 2;
+			value += noise.perlin2( x / 5, z / 5 ) / 3;
 
-		if (data.type == 'ground') {
-			if (value > 0) {
-				data.type = 'desert';
+			if (data.type == 'grass') {
+				if (value > 0) {
+					data.type = 'plain';
+				}
 			}
+
+			// Desert
+			noise.seed( map.seeds.desert );
+			var value = noise.perlin2( x / 50, z / 50 )-0.7;
+			value += noise.perlin2( x / 20, z / 20 ) / 2;
+			value += noise.perlin2( x / 10, z / 10 ) / 3;
+			value += noise.perlin2( x / 5, z / 5 ) / 4;
+
+			if (data.type == 'grass') {
+				if (value > 0) {
+					data.type = 'desert';
+				}
+			}
+
+			// Rock
+			noise.seed( map.seeds.rock );
+			var value = noise.perlin2( x / 3, z / 3 ) - 0.3;
+
+			if (value > 0 && data.height > 0) {
+				data.terrain.push({
+					name : 'rock',
+					density : value,
+				});
+			}
+
+			// Tree
+			noise.seed( map.seeds.tree );
+			var value = noise.perlin2( x / 10, z / 10 ) - 0.9;
+
+			if (data.type == 'grass' || data.type == 'plain') {
+				value += 0.7;
+			} else if (data.height > 0) {
+				value = -1;
+			}
+
+			if (value >= 0) {
+				data.terrain.push({
+					name : 'tree',
+					density : value,
+				});
+			}
+
+			map.map[z].push( data );
 		}
-
-		// Rock
-		noise.seed(seeds.rock);
-		var value = noise.perlin2(x / 3, z / 3) - 0.3;
-
-		if (value > 0 && data.height > 0) {
-			data.terrain.push({
-				name : 'rock',
-				density : value,
-			});
-		}
-
-		// Tree
-		noise.seed(seeds.tree);
-		var value = noise.perlin2(x / 10, z / 10) - 0.9;
-
-		if (data.type == 'ground' || data.type == 'plain') {
-			value += 0.7;
-		} else if (data.height > 0) {
-			value = -1;
-		}
-
-		if (value >= 0) {
-			data.terrain.push({
-				name : 'tree',
-				density : value,
-			});
-		}
-
-		map[z].push(data);
 	}
-}
 
-// Draw 3D Box
+	// Add 3D Objects
+	for (var z = 0; z < map.size; z++) {
+		for (var x = 0; x < map.size; x++) {
+			var here = map.map[z][x];
 
-// Geometry Setting
-var geometry = new THREE.BoxBufferGeometry( 1.98, 0.5, 1.98 );
-var box_geometry = new THREE.BoxBufferGeometry( 1, 1, 1 );
+			// Add Type Object
+			var type_cube = false;
+			var position = new THREE.Vector3();
+			var mat = false;
 
-// Material Setting
-var ground_material = new THREE.MeshStandardMaterial( { color: new THREE.Color('rgb(0,220,0)') } );
-var tree_wood_material = new THREE.MeshStandardMaterial( { color: new THREE.Color('brown') } );
-var coast_material = new THREE.MeshStandardMaterial( { color: new THREE.Color('rgb(0,0,200)') } );
-var ocean_material = new THREE.MeshStandardMaterial( { color: new THREE.Color('rgb(0,0,120)') } );
-var swamp_material = new THREE.MeshStandardMaterial( { color: new THREE.Color('rgb(0,140,70)') } );
-var tree_leaf_material = new THREE.MeshStandardMaterial( { color: new THREE.Color('green') } );
-var rock_material = new THREE.MeshStandardMaterial( { color: new THREE.Color('rgb(100,100,100)') } );
-var desert_material = new THREE.MeshStandardMaterial( { color: new THREE.Color('rgb(220,186,141)') } );
-var plain_material = new THREE.MeshStandardMaterial( { color: new THREE.Color('rgb(140,230,0)') } );
-var empty_material = new THREE.MeshStandardMaterial( { color: new THREE.Color('rgb(0,0,0)') } );
+			position.x = x*2 - map.size*2/2;
+			position.y = here.height*0.5;
+			position.z = z*2 - map.size*2/2;
 
-// Material Opacity
-coast_material.transparent = true;
-coast_material.opacity = 0.8;
+			if (here.type == 'ocean') {
+				mat = material.ocean;
 
-ocean_material.transparent = true;
-ocean_material.opacity = 0.8;
+				position.y = - 0.2;
+				/*position.y += Math.random()/2;*/
+			} else if (here.type == 'coast') {
+				mat = material.coast;
 
-tree_leaf_material.transparent = true;
-tree_leaf_material.opacity = 0.5;
+				position.y = - 0.2;
+			} else if (here.type == 'grass') {
+				mat = material.grass;
+			} else if (here.type == 'swamp') {
+				mat = material.swamp;
+			} else if (here.type == 'desert') {
+				mat = material.desert;
+			} else if (here.type == 'plain') {
+				mat = material.plain;
+			}
 
-rock_material.transparent = true;
-rock_material.opacity = 0.8;
+			// Add Cube
+			type_cube = new THREE.Mesh( geometry.ground, material.empty );
+			var cube = new THREE.Mesh( geometry.ground, mat );
 
-empty_material.transparent = true;
-empty_material.opacity = 0;
+			var near = [
+				[z,x+1],
+				[z+1,x],
+				[z,x-1],
+				[z-1,x],
+			];
 
-var ground_group = new THREE.Group();
-var terrain_group = new THREE.Group();
+			var cliffgap = 0;
+			for (var n = 0; n < near.length; n++) {
+				var ne = near[n];
 
-for (var z = 0; z < map_size; z++) {
-	for (var x = 0; x < map_size; x++) {
-		var here = map[z][x];
+				if (ne[0] < map.size && ne[1] < map.size && ne[0] >= 0 && ne[1] >= 0) {
+					var tile = map.map[ne[0]][ne[1]];
+					/*if (tile.height == here.height - 1) {
+						var stair = new THREE.Mesh( geometry, material );
+						var ran = Math.random()/10;
+						stair.scale.set(1.1+ran, 0.8+ran, 1.1+ran);
 
-		// Add Type Object
-		var type_cube = false;
-		var position = new THREE.Vector3();
-		var material = false;
+						stair.position.y = -0.5;
 
-		position.x = x*2 - map_size*2/2;
-		position.y = here.height*0.5;
-		position.z = z*2 - map_size*2/2;
-
-		if (here.type == 'ocean') {
-			material = ocean_material;
-
-			position.y = - 0.2;
-			/*position.y += Math.random()/2;*/
-		} else if (here.type == 'coast') {
-			material = coast_material;
-
-			position.y = - 0.2;
-		} else if (here.type == 'ground') {
-			material = ground_material;
-		} else if (here.type == 'swamp') {
-			material = swamp_material;
-		} else if (here.type == 'desert') {
-			material = desert_material;
-		} else if (here.type == 'plain') {
-			material = plain_material;
-		}
-
-		// Add Cube
-		type_cube = new THREE.Mesh( geometry, empty_material );
-		var cube = new THREE.Mesh( geometry, material );
-
-		var near = [
-			[z,x+1],
-			[z+1,x],
-			[z,x-1],
-			[z-1,x],
-		];
-
-		var cliffgap = 0;
-		for (var n = 0; n < near.length; n++) {
-			var ne = near[n];
-
-			if (ne[0] < map_size && ne[1] < map_size && ne[0] >= 0 && ne[1] >= 0) {
-				var tile = map[ne[0]][ne[1]];
-				/*if (tile.height == here.height - 1) {
-					var stair = new THREE.Mesh( geometry, material );
-					var ran = Math.random()/10;
-					stair.scale.set(1.1+ran, 0.8+ran, 1.1+ran);
-
-					stair.position.y = -0.5;
-
-					type_cube.add(stair);
+						type_cube.add(stair);
 
 
-					var stair = new THREE.Mesh( geometry, material );
-					stair.scale.set(1.2+ran, 0.7+ran, 1.2+ran);
+						var stair = new THREE.Mesh( geometry, material );
+						stair.scale.set(1.2+ran, 0.7+ran, 1.2+ran);
 
-					stair.position.y = -1;
+						stair.position.y = -1;
 
-					type_cube.add(stair);
-				}*/
-				if (tile.height <= (here.height - 2)) {
-					var gap = here.height - (tile.height);
-					if (gap >= cliffgap) {
-						cliffgap = gap;
+						type_cube.add(stair);
+					}*/
+					if (tile.height <= (here.height - 2)) {
+						var gap = here.height - (tile.height);
+						if (gap >= cliffgap) {
+							cliffgap = gap;
+						}
 					}
 				}
 			}
-		}
 
-		for (var g = 0; g < cliffgap; g++) {
-			var cliff = new THREE.Mesh( geometry, material );
+			for (var g = 0; g < cliffgap; g++) {
+				var cliff = new THREE.Mesh( geometry.ground, mat );
 
-			cliff.position.y = -0.5*(g+1);
+				cliff.position.y = -0.5 * (g + 1);
 
-			type_cube.add(cliff);
-		}
+				type_cube.add( cliff );
+			}
 
-		type_cube.add(cube);
+			type_cube.add( cube );
 
-		type_cube.position.add(position);
-		ground_group.add( type_cube );
+			type_cube.position.add( position );
+			group.ground.add( type_cube );
 
-		// Add Terrain Object
-		var terrain_cube = new THREE.Group();
-		var position = new THREE.Vector3();
+			// Add Terrain Object
+			var terrain_cube = new THREE.Group();
+			var position = new THREE.Vector3();
 
-		position.x = x*2 - map_size*2/2;
-		position.y = here.height*0.5;
-		position.z = z*2 - map_size*2/2;
+			position.x = x*2 - map.size*2/2;
+			position.y = here.height*0.5;
+			position.z = z*2 - map.size*2/2;
 
-		for (var t = 0; t < here.terrain.length; t++) {
-			var ter = here.terrain[t];
+			for (var t = 0; t < here.terrain.length; t++) {
+				var ter = here.terrain[t];
 
-			if (ter.name == 'tree') {
-				var poslist = [];	// Tree Position, new THREE.Vector3()
-				for (var w = 0; w < ter.density*4; w++){
-					wood_group = new THREE.Group();
+				if (ter.name == 'tree') {
+					var poslist = [];	// Tree Position, new THREE.Vector3()
+					for (var w = 0; w < ter.density*4; w++){
+						wood_group = new THREE.Group();
 
-					wood_group.rotation.y = Math.random();
+						wood_group.rotation.y = Math.random();
 
-					// Tree TooClose
-					var loopcount = 0;
-					var tooclose = false;
-					do {
-						tooclose = false;
-						var newpos = new THREE.Vector3();
+						// Tree TooClose
+						var loopcount = 0;
+						var tooclose = false;
+						do {
+							tooclose = false;
+							var newpos = new THREE.Vector3();
 
-						newpos.x = (Math.random()-0.5)*1.5;
-						newpos.z = (Math.random()-0.5)*1.5;
+							newpos.x = (Math.random() - 0.5) * 1.5;
+							newpos.z = (Math.random() - 0.5) * 1.5;
 
-						for(var p = 0; p < poslist.length; p++) {
-							var po = poslist[p];
+							for (var p = 0; p < poslist.length; p++) {
+								var po = poslist[p];
 
-							if(newpos.distanceTo(po) <= 1) {
-								tooclose = true;
-								break;
+								if (newpos.distanceTo(po) <= 1) {
+									tooclose = true;
+									break;
+								}
 							}
+
+							wood_group.position.x = newpos.x;
+							wood_group.position.z = newpos.z;
+
+							loopcount += 1;
+							if (loopcount >= 10)
+								break;
+						} while (tooclose);
+
+						poslist.push( new THREE.Vector3().copy( wood_group.position ) );
+
+						// Wood
+						var rand = Math.random();
+
+						var wood_mesh = new THREE.Mesh( geometry.box, material.tree_wood );
+
+						var density = 0.05;	//+ter.density/2
+						var height = 0.5;	//+ter.density/2
+
+						if (rand >= 0.8) {
+							height += ter.density/4;
+							density += ter.density/6;
 						}
 
-						wood_group.position.x = newpos.x;
-						wood_group.position.z = newpos.z;
+						wood_mesh.scale.set( density, height, density );
 
-						loopcount += 1;
-						if(loopcount >= 10)
-							break;
-					} while (tooclose);
+						wood_mesh.position.y = 0.25 + (height / 2);
 
-					poslist.push(new THREE.Vector3().copy(wood_group.position));
+						wood_group.add( wood_mesh );
 
-					// Wood
-					var rand = Math.random();
+						// Leaf
+						var leaf_mesh = new THREE.Mesh( geometry.box, material.tree_leaf );
 
-					var wood_mesh = new THREE.Mesh( box_geometry, tree_wood_material );
+						var density = 0.5;	//+ter.density*1.3
 
-					var density = 0.05;	//+ter.density/2
-					var height = 0.5;	//+ter.density/2
+						if (rand >= 0.8) {
+							density += ter.density/2;
+						}
 
-					if (rand >= 0.8) {
-						height += ter.density/4;
-						density += ter.density/6;
+						leaf_mesh.scale.set( density, density, density );
+
+						leaf_mesh.position.y = 0.25 + height;
+
+						wood_group.add( leaf_mesh );
+
+						terrain_cube.add( wood_group );
 					}
+				}
+				if (ter.name == 'rock') {
+					var density = 0.2+ter.density*2.5;
 
-					wood_mesh.scale.set(density, height, density);
+					var terrain = new THREE.Mesh( geometry.box, material.rock );
 
-					wood_mesh.position.y = 0.25+height/2;;
+					terrain.scale.set( density, density/4, density );
 
-					wood_group.add(wood_mesh);
+					terrain.position.y = 0.25;
 
-					// Leaf
-					var leaf_mesh = new THREE.Mesh( box_geometry, tree_leaf_material );
-
-					var density = 0.5;	//+ter.density*1.3
-
-					if (rand >= 0.8) {
-						density += ter.density/2;
-					}
-
-					leaf_mesh.scale.set(density, density, density);
-
-					leaf_mesh.position.y = 0.25+height;
-
-					wood_group.add(leaf_mesh);
-
-					terrain_cube.add(wood_group);
+					terrain_cube.add( terrain );
 				}
 			}
-			if (ter.name == 'rock') {
-				var density = 0.2+ter.density*2.5;
 
-				var terrain = new THREE.Mesh( box_geometry, rock_material );
-
-				terrain.scale.set( density, density/4, density );
-
-				terrain.position.y = 0.25;
-
-				terrain_cube.add(terrain);
+			if (terrain_cube) {
+				terrain_cube.position.add( position );
+				group.terrain.add( terrain_cube );
 			}
 		}
-
-		if (terrain_cube) {
-			terrain_cube.position.add(position);
-			terrain_group.add(terrain_cube);
-		}
 	}
-}
-scene.add( ground_group );
-scene.add( terrain_group );
+}	// Map Init Function End
 
-var animate = function () {
-	requestAnimationFrame( animate );
+var mainLoop = function () {
+	requestAnimationFrame( mainLoop );
 
-	var pos = ground_group.position;
-	if (pos.x > map_offset.x) {
+	var pos = group.ground.position;
+	if (pos.x > map.offset.x) {
 		pos.x -= 1;
-	} else if (pos.x < map_offset.x) {
+	} else if (pos.x < map.offset.x) {
 		pos.x += 1;
 	}
 
-	if (pos.z > map_offset.y) {
+	if (pos.z > map.offset.y) {
 		pos.z -= 1;
-	} else if (pos.z < map_offset.y) {
+	} else if (pos.z < map.offset.y) {
 		pos.z += 1;
 	}
-	terrain_group.position.set(pos.x, pos.y, pos.z);
+	group.terrain.position.set( pos.x, pos.y, pos.z );
 
-	controls.update();
+	orbitControls.update();
 
 	renderer.render(scene, camera);
 };
 
-animate();
+Init();
+mainLoop();
