@@ -10,7 +10,6 @@ function MapInit() {
 				cube : false,
 				type : '',
 				terrain : [],
-				mineral : [],
 				/*
 
 				terrain : [{
@@ -28,20 +27,30 @@ function MapInit() {
 
 			// Ground Elevation
 			noise.seed( map.seeds.elevation );
-			var value = noise.simplex2( x / 1000, z / 1000 ) * 2 + 0.2;
-			value += noise.simplex2( x / 100, z / 100 ) / 2;
-			value += noise.perlin2( x / 60, z / 60 ) / 3;
-			value += noise.perlin2( x / 40, z / 40 ) / 4;
-			value += noise.perlin2( x / 20, z / 20 ) / 5;
-			value += noise.perlin2( x / 10, z / 10 ) / 6;
+			var value = noise.simplex2( x / 100, z / 100 ) * 2 + 0.2;
+			value += noise.simplex2( x / 60, z / 60 ) / 2;
+			value += noise.perlin2( x / 40, z / 40 ) / 3;
+			value += noise.perlin2( x / 20, z / 20 ) / 4;
+			value += noise.simplex2( x / 10, z / 10 ) / 5;
 
-			value *= 10;
+			value *= 5;
 
 			data.density = value;
 			if (value > 0) {
 				data.height = parseInt( value );
+			}
+
+			/*var value = noise.simplex2( x / 70, z / 70 ) - 0.6;
+			if (value > 0 && data.height >= 1) {
+				var rand = (Math.random()+0.5);
+				data.height += rand;
+				data.density += rand;
+			}*/
+
+			if (data.density > 0) {
+				data.height = parseInt( data.density );
 				data.type = 'grass';
-			} else if (value >= -1) {
+			} else if (data.density >= -1) {
 				data.type = 'coast';
 			} else {
 				data.type = 'ocean';
@@ -73,35 +82,36 @@ function MapInit() {
 
 			// Desert
 			noise.seed( map.seeds.desert );
-			var value = noise.perlin2( x / 50, z / 50 )-0.7;
+			var value = noise.perlin2( x / 50, z / 50 )-0.5;
 			value += noise.perlin2( x / 20, z / 20 ) / 2;
 			value += noise.perlin2( x / 10, z / 10 ) / 3;
 			value += noise.perlin2( x / 5, z / 5 ) / 4;
 
-			if (data.type == 'grass') {
+			if (data.type == 'grass' || data.type == 'plain') {
 				if (value > 0) {
 					data.type = 'desert';
 				}
 			}
 
-			// Steel
-			noise.seed( map.seeds.steel );
-			var value = noise.perlin2( x / 5, z / 5 ) - 0.3;
+			// Rock
+			noise.seed( map.seeds.rock );
+			var value = noise.perlin2( x / 10, z / 10 ) - 0.5;
 
 			if (value > 0 && data.height > 0) {
-				data.mineral.push({
-					name : 'steel',
+				data.terrain.push({
+					name : 'rock',
 					density : value,
 				});
 			}
 
 			// Tree
 			noise.seed( map.seeds.tree );
-			var value = noise.perlin2( x / 10, z / 10 ) - 0.9;
+			var value = noise.perlin2( x / 50, z / 50 ) - 1;
+			value += noise.perlin2( x / 10, z / 10 );
 
 			if (data.type == 'grass' || data.type == 'plain') {
 				value += 0.7;
-			} else if (data.height > 0) {
+			} else {
 				value = -1;
 			}
 
@@ -126,19 +136,21 @@ function MapInit() {
 			var position = new THREE.Vector3();
 			var mat = false;
 
-			position.x = x*2 - map.size*2/2;
-			position.y = here.height*0.5;
-			position.z = z*2 - map.size*2/2;
+			var tile_height = 0.3;
+			var tile_width = 1;
+
+			position.x = x*tile_width - map.size*tile_width/2;
+			position.y = here.height*tile_height;
+			position.z = z*tile_width - map.size*tile_width/2;
 
 			if (here.type == 'ocean') {
 				mat = material.ocean;
 
-				position.y = - 0.2;
-				/*position.y += Math.random()/2;*/
+				position.y = - 0.1;
 			} else if (here.type == 'coast') {
 				mat = material.coast;
 
-				position.y = - 0.2;
+				position.y = - 0.1;
 			} else if (here.type == 'grass') {
 				mat = material.grass;
 			} else if (here.type == 'swamp') {
@@ -152,6 +164,8 @@ function MapInit() {
 			// Add Cube
 			type_cube = new THREE.Mesh( geometry.ground, material.empty );
 			var cube = new THREE.Mesh( geometry.ground, mat );
+
+			//type_cube.rotation.x = -Math.PI / 2;
 
 			var near = [
 				[z,x+1],
@@ -195,7 +209,7 @@ function MapInit() {
 			for (var g = 0; g < cliffgap; g++) {
 				var cliff = new THREE.Mesh( geometry.ground, mat );
 
-				cliff.position.y = -0.5 * (g + 1);
+				cliff.position.y = -tile_height * (g + 1);
 
 				type_cube.add( cliff );
 			}
@@ -209,16 +223,16 @@ function MapInit() {
 			var terrain_cube = new THREE.Group();
 			var position = new THREE.Vector3();
 
-			position.x = x*2 - map.size*2/2;
-			position.y = here.height*0.5;
-			position.z = z*2 - map.size*2/2;
+			position.x = x*tile_width - map.size*tile_width/2;
+			position.y = here.height*tile_height+tile_height/2;
+			position.z = z*tile_width - map.size*tile_width/2;
 
 			for (var t = 0; t < here.terrain.length; t++) {
 				var ter = here.terrain[t];
 
 				if (ter.name == 'tree') {
 					var poslist = [];	// Tree Position, new THREE.Vector3()
-					for (var w = 0; w < ter.density*4; w++){
+					for (var w = 0; w < parseInt(1/*+ter.density/5*/); w++){
 						wood_group = new THREE.Group();
 
 						wood_group.rotation.y = Math.random();
@@ -230,13 +244,13 @@ function MapInit() {
 							tooclose = false;
 							var newpos = new THREE.Vector3();
 
-							newpos.x = (Math.random() - 0.5) * 1.5;
-							newpos.z = (Math.random() - 0.5) * 1.5;
+							newpos.x = (Math.random() - 0.5) * tile_width;
+							newpos.z = (Math.random() - 0.5) * tile_width;
 
 							for (var p = 0; p < poslist.length; p++) {
 								var po = poslist[p];
 
-								if (newpos.distanceTo(po) <= 1) {
+								if (newpos.distanceTo(po) <= 0.5) {
 									tooclose = true;
 									break;
 								}
@@ -267,7 +281,7 @@ function MapInit() {
 
 						wood_mesh.scale.set( density, height, density );
 
-						wood_mesh.position.y = 0.25 + (height / 2);
+						wood_mesh.position.y = height / 2;
 
 						wood_group.add( wood_mesh );
 
@@ -282,12 +296,27 @@ function MapInit() {
 
 						leaf_mesh.scale.set( density, density, density );
 
-						leaf_mesh.position.y = 0.25 + height;
+						leaf_mesh.position.y = height;
 
 						wood_group.add( leaf_mesh );
 
 						terrain_cube.add( wood_group );
 					}
+				} else if(ter.name == 'rock') {
+					var density = 0.5+ter.density*1.5;
+
+					var rock_cube = new THREE.Mesh( geometry.box, material.rock );
+
+					rock_cube.scale.set( density, density, density );
+
+					rock_cube.position.x = (Math.random() - 0.5) / 2;
+					rock_cube.position.z = (Math.random() - 0.5) / 2;
+
+					rock_cube.rotation.x = Math.random() * Math.PI * 2;
+					rock_cube.rotation.y = Math.random() * Math.PI * 2;
+					rock_cube.rotation.z = Math.random() * Math.PI * 2;
+
+					terrain_cube.add( rock_cube );
 				}
 			}
 
@@ -297,7 +326,7 @@ function MapInit() {
 			}
 
 			// Add Mineral Object
-			var mineral_cube = new THREE.Group();
+			/*var mineral_cube = new THREE.Group();
 			var position = new THREE.Vector3();
 
 			position.x = x*2 - map.size*2/2;
@@ -307,14 +336,20 @@ function MapInit() {
 			for (var m = 0; m < here.mineral.length; m++) {
 				var mi = here.mineral[m];
 
-				if (mi.name == 'steel') {
-					var density = 0.2+mi.density*2.5;
+				if (mi.name == 'rock') {
+					var density = 0.5+mi.density*1.5;
 
 					var mineral = new THREE.Mesh( geometry.box, material.steel );
 
-					mineral.scale.set( density, density/4, density );
+					mineral.scale.set( density, density, density );
 
 					mineral.position.y = 0.25;
+					mineral.position.x = Math.random() - 0.5;
+					mineral.position.z = Math.random() - 0.5;
+
+					mineral.rotation.x = Math.random() * Math.PI * 2;
+					mineral.rotation.y = Math.random() * Math.PI * 2;
+					mineral.rotation.z = Math.random() * Math.PI * 2;
 
 					mineral_cube.add( mineral );
 				}
@@ -323,7 +358,7 @@ function MapInit() {
 			if (mineral_cube) {
 				mineral_cube.position.add( position );
 				group.mineral.add( mineral_cube );
-			}
+			}*/
 		}
 	}
 }	// Map Init Function End

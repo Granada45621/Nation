@@ -16,7 +16,7 @@ var group;
 function Init() {
 	// Scene And Camera
 	scene = new THREE.Scene();
-	camera = new THREE.PerspectiveCamera( 45, window.innerWidth / window.innerHeight, 1, 600 );
+	camera = new THREE.PerspectiveCamera( 60, window.innerWidth / window.innerHeight, 0.1, 600 );
 	orbitControls = new THREE.OrbitControls( camera );
 
 	// Renderer
@@ -37,10 +37,10 @@ function Init() {
 	// Fog
 	fogs = {
 		day : {
-			fog : new THREE.Fog( new THREE.Color( 'skyblue' ), 40, 120 ),
+			fog : new THREE.Fog( new THREE.Color( 'skyblue' ), 20, 60 ),
 		},
 		night : {
-			fog : new THREE.Fog( new THREE.Color( 'rgb(30, 30, 30)' ), 20, 60 ),
+			fog : new THREE.Fog( new THREE.Color( 'rgb(24, 15, 42)' ), 8, 20 ),
 		},
 	};
 
@@ -55,7 +55,7 @@ function Init() {
 	orbitControls.enableDamping = true;
 	orbitControls.dampingFactor = 0.8;
 	orbitControls.panningMode = THREE.HorizontalPanning;
-	orbitControls.minDistance = 10;
+	orbitControls.minDistance = 1;
 	orbitControls.maxDistance = 400
 	orbitControls.maxPolarAngle = Math.PI / 2;
 	orbitControls.update();
@@ -73,22 +73,22 @@ function Init() {
 	scene.add( lights.night.hemisphereLight );*/
 
 	// Add Fog to Scene
-	/*scene.background = fogs.day.fog.color;
+	scene.background = fogs.day.fog.color;
 	scene.fog = fogs.day.fog;
 
-	scene.background = fogs.night.fog.color;
+	/*scene.background = fogs.night.fog.color;
 	scene.fog = fogs.night.fog;*/
 
 	// Map
 	map = {
 		map : [],
-		size : 60,
+		size : 80,
 		offset : new THREE.Vector2(),
 		seeds : {
 			elevation : Math.random(),
 			reed : Math.random(),
 			tree : Math.random(),
-			steel : Math.random(),
+			rock : Math.random(),
 			swamp : Math.random(),
 			plain : Math.random(),
 			desert : Math.random(),
@@ -105,7 +105,8 @@ function Init() {
 
 	// Geometry
 	geometry = {
-		ground : new THREE.BoxBufferGeometry( 1.98, 0.5, 1.98 ),
+		plane : new THREE.PlaneBufferGeometry( 60, 60, 199, 199 ),
+		ground : new THREE.BoxBufferGeometry( 0.98, 0.3, 0.98 ),
 		box : new THREE.BoxBufferGeometry( 1, 1, 1 ),
 	};
 
@@ -117,7 +118,7 @@ function Init() {
 		ocean : new THREE.MeshStandardMaterial( { color: new THREE.Color('rgb(0,0,120)') } ),
 		swamp : new THREE.MeshStandardMaterial( { color: new THREE.Color('rgb(0,140,70)') } ),
 		tree_leaf : new THREE.MeshStandardMaterial( { color: new THREE.Color('green') } ),
-		steel : new THREE.MeshStandardMaterial( { color: new THREE.Color('rgb(150,150,150)') } ),
+		rock : new THREE.MeshStandardMaterial( { color: new THREE.Color('rgb(150,150,150)') } ),
 		desert : new THREE.MeshStandardMaterial( { color: new THREE.Color('rgb(220,186,141)') } ),
 		plain : new THREE.MeshStandardMaterial( { color: new THREE.Color('rgb(140,230,0)') } ),
 		empty : new THREE.MeshStandardMaterial( { color: new THREE.Color('rgb(0,0,0)') } ),
@@ -127,7 +128,6 @@ function Init() {
 	group = {
 		ground : new THREE.Group(),
 		terrain : new THREE.Group(),
-		mineral : new THREE.Group(),
 	};
 
 	// Material Setting
@@ -140,8 +140,8 @@ function Init() {
 	material.tree_leaf.transparent = true;
 	material.tree_leaf.opacity = 0.5;
 
-	material.steel.transparent = true;
-	material.steel.opacity = 0.8;
+	material.rock.transparent = true;
+	material.rock.opacity = 0.8;
 
 	material.empty.transparent = true;
 	material.empty.opacity = 0;
@@ -149,7 +149,6 @@ function Init() {
 	// Add Group to Scene
 	scene.add( group.ground );
 	scene.add( group.terrain );
-	scene.add( group.mineral );
 
 	MapInit();
 }
@@ -199,7 +198,6 @@ var mainLoop = function () {
 			pos.z += 1;
 		}
 		group.terrain.position.set( pos.x, pos.y, pos.z );
-		group.mineral.position.set( pos.x, pos.y, pos.z );
 	}
 
 	orbitControls.update();
